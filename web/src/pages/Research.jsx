@@ -138,6 +138,22 @@ export default function Research({ currentUser, token, onLoginClick }) {
         color: #000000 !important;
         background-color: #ffffff !important;
       }
+      #report-content h1, 
+      #report-content h2, 
+      #report-content h3, 
+      #report-content h4, 
+      #report-content h5, 
+      #report-content h6 {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      #report-content p,
+      #report-content li {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
     `;
     document.head.appendChild(style);
     
