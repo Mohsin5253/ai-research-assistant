@@ -129,41 +129,29 @@ export default function Research({ currentUser, token, onLoginClick }) {
   };
 
   const downloadPdf = () => {
-    const originalElement = document.getElementById('report-content');
+    const element = document.getElementById('report-content');
     
-    // Create a clone to prevent flashing the UI and to ensure perfect PDF formatting
-    const element = originalElement.cloneNode(true);
-    element.style.width = '800px';
-    element.style.maxWidth = 'none';
-    element.style.padding = '40px';
-    element.style.background = '#ffffff';
-    element.style.color = '#000000';
-    
-    // Force all text elements inside the clone to be black and properly wrapped
-    const allElements = element.querySelectorAll('*');
-    allElements.forEach(el => {
-      el.style.color = '#000000';
-      el.style.backgroundColor = 'transparent';
-      el.style.wordWrap = 'break-word';
-      el.style.whiteSpace = 'pre-wrap';
-    });
-    
-    // Temporarily append to body so html2canvas can render it
-    element.style.position = 'absolute';
-    element.style.left = '-9999px';
-    document.body.appendChild(element);
+    // Inject a temporary style to force black text and white background for the PDF
+    const style = document.createElement('style');
+    style.innerHTML = `
+      #report-content, #report-content * {
+        color: #000000 !important;
+        background-color: #ffffff !important;
+      }
+    `;
+    document.head.appendChild(style);
     
     const opt = {
       margin:       0.5,
       filename:     `Research_Report_${topic.replace(/\s+/g, '_')}.pdf`,
       image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, windowWidth: 800 },
+      html2canvas:  { scale: 2 },
       jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' },
       pagebreak:    { mode: ['css', 'legacy'], avoid: ['p', 'h1', 'h2', 'h3', 'h4', 'li'] }
     };
     
     html2pdf().set(opt).from(element).save().then(() => {
-      document.body.removeChild(element);
+      document.head.removeChild(style);
     });
   };
 

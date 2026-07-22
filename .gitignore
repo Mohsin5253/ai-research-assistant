@@ -1,12 +1,6 @@
-# Python
-__pycache__/
 venv/
+__pycache__/
 *.pyc
 .env
 sql_app.db
-
-# Node
-web/node_modules/
-web/dist/
-web/.env
 .DS_Store
