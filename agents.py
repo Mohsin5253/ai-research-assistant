@@ -9,9 +9,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Primary model with automatic fallbacks for rate limit tolerance
-primary_llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0, api_key=api_key)
-fallback_llm1 = ChatGroq(model="mixtral-8x7b-32768", temperature=0, api_key=api_key)
-fallback_llm2 = ChatGroq(model="llama-3.1-8b-instant", temperature=0, api_key=api_key)
+primary_llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0, )
+fallback_llm1 = ChatGroq(model="mixtral-8x7b-32768", temperature=0, )
+fallback_llm2 = ChatGroq(model="llama-3.1-8b-instant", temperature=0, )
 
 llm = primary_llm.with_fallbacks([fallback_llm1, fallback_llm2])
 
