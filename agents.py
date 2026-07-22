@@ -3,17 +3,17 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from tools import web_search , scrape_url 
 import os
-from langchain_groq import ChatGroq
+from langchain_anthropic import ChatAnthropic
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Primary model with automatic fallbacks for rate limit tolerance
-primary_llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0, )
-fallback_llm1 = ChatGroq(model="mixtral-8x7b-32768", temperature=0, )
-fallback_llm2 = ChatGroq(model="llama-3.1-8b-instant", temperature=0, )
+# Prevent server crash on startup if ANTHROPIC_API_KEY is missing
+api_key = os.getenv("ANTHROPIC_API_KEY", "dummy_key")
 
-llm = primary_llm.with_fallbacks([fallback_llm1, fallback_llm2])
+# Primary model: Claude 3.5 Sonnet (Perfect for massive deep research & parallel tasks)
+llm = ChatAnthropic(model="claude-3-5-sonnet-latest", temperature=0, api_key=api_key)
 
 
 #1st agent 
