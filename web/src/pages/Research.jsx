@@ -6,19 +6,26 @@ import html2pdf from 'html2pdf.js';
 
 export default function Research({ currentUser, token, onLoginClick }) {
   const location = useLocation();
-  const [topic, setTopic] = useState(() => location.state?.initialTopic || sessionStorage.getItem('pending_research_topic') || '');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null); 
-  const [error, setError] = useState(null);
-  const [phase, setPhase] = useState('');
+  const navigate = useNavigate();
+  const resultsRef = useRef(null);
+
+  // New Multitasking State
+  const [activeId, setActiveId] = useState('new');
+  const [tasks, setTasks] = useState({
+    'new': {
+      type: 'new',
+      topic: location.state?.initialTopic || sessionStorage.getItem('pending_research_topic') || '',
+      result: null,
+      loading: false,
+      phase: null,
+      error: null,
+      followUp: ''
+    }
+  });
+
   const [hasAutoStarted, setHasAutoStarted] = useState(() => !(location.state?.initialTopic || sessionStorage.getItem('pending_research_topic')));
-  
   const [sessions, setSessions] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [followUp, setFollowUp] = useState('');
-  
-  const resultsRef = useRef(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
     sessionStorage.removeItem('pending_research_topic');
@@ -45,32 +52,51 @@ export default function Research({ currentUser, token, onLoginClick }) {
   };
 
   const loadSession = async (sessionId) => {
+    setActiveId(String(sessionId));
+    if (window.innerWidth < 768) setSidebarOpen(false);
+
+    if (tasks[sessionId] && tasks[sessionId].result && !tasks[sessionId].loading) {
+      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+      return;
+    }
+
+    setTasks(prev => ({
+      ...prev,
+      [sessionId]: { ...(prev[sessionId] || {}), loading: true, error: null, phase: phases[0] }
+    }));
+
     try {
-      setLoading(true);
-      setError(null);
-      setResult(null);
-      setSidebarOpen(false); 
       const API_URL = import.meta.env.VITE_API_URL || 'https://ai-research-assistant-2zmw.onrender.com';
       const res = await fetch(`${API_URL}/api/sessions/${sessionId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
       if (res.ok) {
         const data = await res.json();
-        setTopic(data.topic);
         const lastReport = data.messages.slice().reverse().find(m => m.message_type === 'report')?.content || '';
         const lastCritic = data.messages.slice().reverse().find(m => m.message_type === 'critic')?.content || '';
-        setResult({
-          session_id: data.id,
-          topic: data.topic,
-          report: lastReport,
-          feedback: lastCritic
-        });
+        
+        setTasks(prev => ({
+          ...prev,
+          [sessionId]: {
+            type: 'session',
+            topic: data.topic,
+            result: { session_id: data.id, topic: data.topic, report: lastReport, feedback: lastCritic },
+            loading: false,
+            phase: null,
+            error: null,
+            followUp: ''
+          }
+        }));
         setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+      } else {
+        throw new Error('Failed to load session');
       }
     } catch (e) {
-      setError('Failed to load session');
-    } finally {
-      setLoading(false);
+      setTasks(prev => ({
+        ...prev,
+        [sessionId]: { ...prev[sessionId], loading: false, error: e.message, phase: null }
+      }));
     }
   };
 
@@ -85,25 +111,53 @@ export default function Research({ currentUser, token, onLoginClick }) {
   ];
 
   const handleResearch = async (isFollowUp = false) => {
-    const activePrompt = isFollowUp ? followUp : topic;
+    const currentTask = tasks[activeId] || tasks['new'];
+    const activePrompt = isFollowUp ? currentTask.followUp : currentTask.topic;
+    
     if (!activePrompt.trim()) return;
     if (!token) { onLoginClick(); return; }
 
-    setLoading(true);
-    setError(null);
-    if (!isFollowUp) setResult(null);
+    const jobId = isFollowUp ? activeId : `temp-${Date.now()}`;
+    
+    setTasks(prev => ({
+      ...prev,
+      [jobId]: {
+        ...(prev[jobId] || {}),
+        type: isFollowUp ? 'session' : 'task',
+        topic: isFollowUp ? prev[activeId].topic : activePrompt,
+        result: isFollowUp ? prev[activeId].result : null,
+        loading: true,
+        error: null,
+        phase: phases[0],
+        followUp: isFollowUp ? '' : (prev[jobId]?.followUp || '')
+      }
+    }));
+
+    if (!isFollowUp) {
+      setActiveId(jobId);
+      setTasks(prev => ({
+        ...prev,
+        'new': { ...prev['new'], topic: '' }
+      }));
+    }
 
     let phaseIdx = 0;
-    setPhase(phases[0]);
     const phaseInterval = setInterval(() => {
       phaseIdx = Math.min(phaseIdx + 1, phases.length - 1);
-      setPhase(phases[phaseIdx]);
+      setTasks(prev => {
+        const nextPhase = phases[phaseIdx];
+        if (!prev[jobId] || !prev[jobId].loading) return prev;
+        return {
+          ...prev,
+          [jobId]: { ...prev[jobId], phase: nextPhase }
+        };
+      });
     }, 25000);
 
     try {
       const bodyPayload = isFollowUp 
-        ? { session_id: result.session_id, prompt: followUp }
-        : { topic };
+        ? { session_id: currentTask.result.session_id, prompt: activePrompt }
+        : { topic: activePrompt };
 
       const API_URL = import.meta.env.VITE_API_URL || 'https://ai-research-assistant-2zmw.onrender.com';
       const response = await fetch(`${API_URL}/api/research`, {
@@ -112,45 +166,73 @@ export default function Research({ currentUser, token, onLoginClick }) {
         body: JSON.stringify(bodyPayload),
       });
 
-      clearInterval(phaseInterval);
-      if (!response.ok) throw new Error(`Error: ${response.statusText}`);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || `Error ${response.status}: Failed to generate update`);
+      }
+      
       const data = await response.json();
-      setResult(data);
-      if (isFollowUp) setFollowUp('');
+      const sessionResult = {
+        session_id: data.session_id,
+        topic: data.topic,
+        report: data.report,
+        feedback: data.feedback
+      };
+
+      const finalSessionId = String(data.session_id);
+
+      setTasks(prev => {
+        const next = { ...prev };
+        if (isFollowUp) {
+          next[jobId] = { ...next[jobId], result: sessionResult, loading: false, phase: null };
+        } else {
+          next[finalSessionId] = { type: 'session', topic: data.topic, result: sessionResult, loading: false, phase: null, error: null, followUp: '' };
+          delete next[jobId]; // Clean up temp task
+        }
+        return next;
+      });
+      
+      if (!isFollowUp) {
+        setActiveId(prevId => prevId === jobId ? finalSessionId : prevId);
+      }
+
       fetchSessions(); 
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     } catch (err) {
-      setError(err.message);
+      setTasks(prev => ({
+        ...prev,
+        [jobId]: { ...prev[jobId], loading: false, error: err.message, phase: null }
+      }));
     } finally {
-      setLoading(false);
-      setPhase('');
       clearInterval(phaseInterval);
     }
   };
 
+  const currentTask = tasks[activeId] || tasks['new'];
+  const { topic, loading, result, error, phase, followUp } = currentTask;
+
+  const setTaskField = (field, val) => {
+    setTasks(prev => ({
+      ...prev,
+      [activeId]: { ...prev[activeId], [field]: val }
+    }));
+  };
+
   const downloadPdf = () => {
     const element = document.getElementById('report-content');
-    
-    // Inject a temporary style to force black text and white background for the PDF
     const style = document.createElement('style');
     style.innerHTML = `
       #report-content, #report-content * {
         color: #000000 !important;
         background-color: #ffffff !important;
       }
-      #report-content h1, 
-      #report-content h2, 
-      #report-content h3, 
-      #report-content h4, 
-      #report-content h5, 
-      #report-content h6 {
+      #report-content h1, #report-content h2, #report-content h3, #report-content h4, #report-content h5, #report-content h6 {
         page-break-after: avoid !important;
         break-after: avoid !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
       }
-      #report-content p,
-      #report-content li {
+      #report-content p, #report-content li {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
       }
@@ -158,12 +240,12 @@ export default function Research({ currentUser, token, onLoginClick }) {
     document.head.appendChild(style);
     
     const opt = {
-      margin:       0.5,
-      filename:     `Research_Report_${topic.replace(/\s+/g, '_')}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2 },
-      jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' },
-      pagebreak:    { mode: ['css', 'legacy'], avoid: ['p', 'h1', 'h2', 'h3', 'h4', 'li'] }
+      margin: 0.5,
+      filename: `Research_Report_${(topic || 'report').replace(/\s+/g, '_')}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['p', 'h1', 'h2', 'h3', 'h4', 'li'] }
     };
     
     html2pdf().set(opt).from(element).save().then(() => {
@@ -179,28 +261,28 @@ export default function Research({ currentUser, token, onLoginClick }) {
     const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `Research_Report_${topic.replace(/\s+/g, '_')}.doc`;
+    link.download = `Research_Report_${(topic || 'report').replace(/\s+/g, '_')}.doc`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   useEffect(() => {
-    if (topic && token && !hasAutoStarted && !loading && !result && !error) {
+    if (tasks['new'].topic && token && !hasAutoStarted) {
       setHasAutoStarted(true);
       handleResearch(false);
     }
-  }, [topic, token, hasAutoStarted, loading, result, error]);
+  }, [tasks['new'].topic, token, hasAutoStarted]);
 
   const MarkdownComponents = {
     a: ({node, ...props}) => {
       let href = props.href || '';
-      if (href && !/^https?:\/\//i.test(href)) {
-        href = `https://${href}`;
-      }
+      if (href && !/^https?:\/\//i.test(href)) href = `https://${href}`;
       return <a {...props} href={href} target="_blank" rel="noopener noreferrer" style={{color: 'var(--accent-primary)', textDecoration: 'underline'}} />;
     }
   };
+
+  const pendingTasks = Object.entries(tasks).filter(([id, t]) => id.startsWith('temp-')).map(([id, t]) => ({ id, topic: t.topic }));
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', paddingTop: '64px' }}>
@@ -223,24 +305,38 @@ export default function Research({ currentUser, token, onLoginClick }) {
         
         {sidebarOpen && (
           <>
-            <button className="btn btn-primary" style={{ width: '100%', marginBottom: '1rem', whiteSpace: 'nowrap' }} onClick={() => { setResult(null); setTopic(''); setFollowUp(''); if(window.innerWidth < 768) setSidebarOpen(false); }}>
+            <button className="btn btn-primary" style={{ width: '100%', marginBottom: '1rem', whiteSpace: 'nowrap' }} onClick={() => { setActiveId('new'); if(window.innerWidth < 768) setSidebarOpen(false); }}>
               + New Research
             </button>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {sessions.length === 0 ? (
+              
+              {/* Active Background Tasks */}
+              {pendingTasks.map(t => (
+                <div key={t.id} onClick={() => setActiveId(t.id)} style={{
+                  padding: '0.75rem', borderRadius: '0.5rem', background: 'var(--bg-glass)', cursor: 'pointer', border: activeId === t.id ? '1px solid var(--accent-primary)' : '1px solid transparent', transition: 'all 0.2s', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis'
+                }}>
+                  <span style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <Loader2 size={14} className="animate-spin" /> {t.topic}
+                  </span>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Generating in background...</div>
+                </div>
+              ))}
+
+              {/* Completed Sessions */}
+              {sessions.length === 0 && pendingTasks.length === 0 ? (
                 <p style={{ color: 'var(--text-tertiary)', fontSize: '0.9rem', textAlign: 'center' }}>No previous research</p>
               ) : (
-                sessions.map(s => (
-                  <div key={s.id} onClick={() => loadSession(s.id)} style={{
-                    padding: '0.75rem', borderRadius: '0.5rem', background: 'var(--bg-glass)',
-                    cursor: 'pointer', border: '1px solid transparent', transition: 'all 0.2s',
-                    overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis'
-                  }} onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-primary)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
-                    <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{s.topic}</span>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{new Date(s.created_at).toLocaleDateString()}</div>
-                  </div>
-                ))
+                sessions.map(s => {
+                  return (
+                    <div key={s.id} onClick={() => loadSession(s.id)} style={{
+                      padding: '0.75rem', borderRadius: '0.5rem', background: 'var(--bg-glass)', cursor: 'pointer', border: activeId === String(s.id) ? '1px solid var(--accent-primary)' : '1px solid transparent', transition: 'all 0.2s', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis'
+                    }} onMouseEnter={e => { if(activeId !== String(s.id)) e.currentTarget.style.borderColor = 'var(--accent-secondary)'}} onMouseLeave={e => { if(activeId !== String(s.id)) e.currentTarget.style.borderColor = 'transparent'}}>
+                      <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{s.topic}</span>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{new Date(s.created_at).toLocaleDateString()}</div>
+                    </div>
+                  )
+                })
               )}
             </div>
           </>
@@ -250,7 +346,7 @@ export default function Research({ currentUser, token, onLoginClick }) {
       <div className="main-content">
         <div className="container" style={{ maxWidth: '900px', margin: '0 auto' }}>
 
-          {!result && !loading && (
+          {!result && !loading && activeId === 'new' && (
             <div style={{ textAlign: 'center', marginBottom: '3rem' }} className="animate-fade-in">
               <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
                 <Brain size={36} color="white" />
@@ -264,13 +360,13 @@ export default function Research({ currentUser, token, onLoginClick }) {
             </div>
           )}
 
-          {!result && (
+          {!result && activeId === 'new' && (
             <div className="glass-panel animate-fade-in" style={{ padding: 'clamp(1.5rem, 4vw, 2.5rem)', borderRadius: '1.5rem', marginBottom: '2rem' }}>
               <label style={{ display: 'block', marginBottom: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>Research Topic</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <textarea
                   value={topic}
-                  onChange={e => setTopic(e.target.value)}
+                  onChange={e => setTaskField('topic', e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleResearch(false); } }}
                   placeholder="e.g. The impact of AGI on global economics by 2035..."
                   disabled={loading} rows={3}
@@ -293,7 +389,7 @@ export default function Research({ currentUser, token, onLoginClick }) {
                 ))}
               </div>
               <p style={{ color: 'var(--accent-primary)', fontWeight: 600, marginBottom: '0.5rem' }}>{phase?.text}</p>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Your AI agents are collaborating on a deep dive. This may take 1-3 minutes.</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Your AI agents are collaborating on a deep dive. This may take 1-3 minutes. You can safely browse other chats while waiting.</p>
             </div>
           )}
 
@@ -341,14 +437,14 @@ export default function Research({ currentUser, token, onLoginClick }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <textarea
                     value={followUp}
-                    onChange={e => setFollowUp(e.target.value)}
+                    onChange={e => setTaskField('followUp', e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleResearch(true); } }}
                     placeholder="e.g. Make the conclusion shorter, or add a section about economic impact..."
                     disabled={loading} rows={2}
                     style={{ width: '100%', minHeight: '80px', resize: 'vertical', padding: '0.875rem 1.25rem', borderRadius: '0.875rem', border: '1px solid var(--border-subtle)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '1rem', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
                   />
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <button className="btn btn-outline" onClick={() => { setResult(null); setTopic(''); setFollowUp(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+                    <button className="btn btn-outline" onClick={() => { setActiveId('new'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
                       Start New Research
                     </button>
                     <button className="btn btn-primary" onClick={() => handleResearch(true)} disabled={loading || !followUp.trim()} style={{ padding: '0.875rem 1.5rem', whiteSpace: 'nowrap' }}>

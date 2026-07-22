@@ -136,7 +136,10 @@ def conduct_research(
             history_str = "\n".join([f"{m.role}: {m.content}" for m in messages])
             last_report = next((m.content for m in reversed(messages) if m.message_type == 'report'), "")
             
-            state = refine_research_pipeline(last_report, history_str, request.prompt)
+            try:
+                state = refine_research_pipeline(last_report, history_str, request.prompt)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to generate updated report: {str(e)}")
             
             # Save new messages
             user_msg = models.Message(session_id=session.id, role="user", content=request.prompt, message_type="prompt")
@@ -157,7 +160,10 @@ def conduct_research(
             }
         else:
             # New session
-            state = run_research_pipeline(request.topic)
+            try:
+                state = run_research_pipeline(request.topic)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to generate research report: {str(e)}")
             
             new_session = models.ResearchSession(user_id=current_user.id, topic=request.topic)
             db.add(new_session)
