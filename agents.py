@@ -3,17 +3,20 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from tools import web_search , scrape_url 
 import os
-from langchain_anthropic import ChatAnthropic
+from langchain_google_genai import ChatGoogleGenerativeAI
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Prevent server crash on startup if ANTHROPIC_API_KEY is missing
-api_key = os.getenv("ANTHROPIC_API_KEY", "dummy_key")
+api_key = os.getenv("GEMINI_API_KEY", "dummy_key")
 
-# Primary model: Claude 3.5 Sonnet (Perfect for massive deep research & parallel tasks)
-llm = ChatAnthropic(model="claude-3-5-sonnet-latest", temperature=0, api_key=api_key)
+# Primary model: Gemini 1.5 Pro (Extremely capable)
+primary_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0, google_api_key=api_key)
+# Fallback model: Gemini 1.5 Flash (Insanely fast, handles massive concurrent loads)
+fallback_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0, google_api_key=api_key)
+
+llm = primary_llm.with_fallbacks([fallback_llm])
 
 
 #1st agent 
