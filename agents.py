@@ -3,20 +3,16 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from tools import web_search , scrape_url 
 import os
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-api_key = os.getenv("GEMINI_API_KEY", "dummy_key")
+api_key = os.getenv("OPENAI_API_KEY", "dummy_key")
 
-# Primary model: Gemini 1.5 Pro (Extremely capable)
-primary_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro-002", temperature=0, google_api_key=api_key)
-# Fallback model: Gemini 1.5 Flash (Insanely fast, handles massive concurrent loads)
-fallback_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-002", temperature=0, google_api_key=api_key)
-
-llm = primary_llm.with_fallbacks([fallback_llm])
+# Primary model: GPT-4o-mini (Massive context, zero rate limit issues, incredibly fast)
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=api_key)
 
 
 #1st agent 
