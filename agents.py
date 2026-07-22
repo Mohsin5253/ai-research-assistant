@@ -12,9 +12,9 @@ load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY", "dummy_key")
 
 # Primary model: Gemini 1.5 Pro (Extremely capable)
-primary_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro-latest", temperature=0, google_api_key=api_key)
+primary_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro-002", temperature=0, google_api_key=api_key)
 # Fallback model: Gemini 1.5 Flash (Insanely fast, handles massive concurrent loads)
-fallback_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest", temperature=0, google_api_key=api_key)
+fallback_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-002", temperature=0, google_api_key=api_key)
 
 llm = primary_llm.with_fallbacks([fallback_llm])
 
