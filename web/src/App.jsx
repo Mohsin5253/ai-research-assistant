@@ -31,7 +31,7 @@ export default function App() {
   // Restore/validate session on load
   useEffect(() => {
     if (token) {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://ai-research-assistant-2zmw.onrender.com';
       fetch(`${API_URL}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })

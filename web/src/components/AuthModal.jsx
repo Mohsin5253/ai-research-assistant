@@ -35,7 +35,7 @@ export default function AuthModal({ onClose, onSuccess, defaultView = 'login' })
         headers = { 'Content-Type': 'application/json' };
       }
 
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://ai-research-assistant-2zmw.onrender.com';
       const response = await fetch(`${API_URL}${endpoint}`, { method: 'POST', headers, body });
       const data = await response.json();
 

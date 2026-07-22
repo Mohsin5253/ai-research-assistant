@@ -31,7 +31,7 @@ export default function Research({ currentUser, token, onLoginClick }) {
 
   const fetchSessions = async () => {
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://ai-research-assistant-2zmw.onrender.com';
       const res = await fetch(`${API_URL}/api/sessions`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -50,7 +50,7 @@ export default function Research({ currentUser, token, onLoginClick }) {
       setError(null);
       setResult(null);
       setSidebarOpen(false); 
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://ai-research-assistant-2zmw.onrender.com';
       const res = await fetch(`${API_URL}/api/sessions/${sessionId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -105,7 +105,7 @@ export default function Research({ currentUser, token, onLoginClick }) {
         ? { session_id: result.session_id, prompt: followUp }
         : { topic };
 
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://ai-research-assistant-2zmw.onrender.com';
       const response = await fetch(`${API_URL}/api/research`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
