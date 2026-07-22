@@ -3,16 +3,20 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from tools import web_search , scrape_url 
 import os
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-api_key = os.getenv("OPENAI_API_KEY", "dummy_key")
+api_key = os.getenv("GROQ_API_KEY", "dummy_key")
 
-# Primary model: GPT-4o-mini (Massive context, zero rate limit issues, incredibly fast)
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=api_key)
+# Primary model: Groq 70B with aggressive fallbacks
+primary_llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0, api_key=api_key)
+fallback_llm1 = ChatGroq(model="mixtral-8x7b-32768", temperature=0, api_key=api_key)
+fallback_llm2 = ChatGroq(model="llama-3.1-8b-instant", temperature=0, api_key=api_key)
+
+llm = primary_llm.with_fallbacks([fallback_llm1, fallback_llm2])
 
 
 #1st agent 
