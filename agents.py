@@ -8,10 +8,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Prevent server crash on startup if GROQ_API_KEY is missing
-api_key = os.getenv("GROQ_API_KEY", "dummy_key")
-# Falling back to 8b model due to rate limits on 70b
-llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0, api_key=api_key)
+# Primary model with automatic fallbacks for rate limit tolerance
+primary_llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0, api_key=api_key)
+fallback_llm1 = ChatGroq(model="mixtral-8x7b-32768", temperature=0, api_key=api_key)
+fallback_llm2 = ChatGroq(model="llama-3.1-8b-instant", temperature=0, api_key=api_key)
+
+llm = primary_llm.with_fallbacks([fallback_llm1, fallback_llm2])
 
 
 #1st agent 
