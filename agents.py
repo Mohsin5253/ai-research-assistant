@@ -11,12 +11,12 @@ load_dotenv()
 
 api_key = os.getenv("GROQ_API_KEY", "dummy_key")
 
-# Primary model: Groq 70B with aggressive fallbacks
+# Primary: llama-3.3-70b-versatile (best quality on Groq)
 primary_llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0, api_key=api_key)
-fallback_llm1 = ChatGroq(model="mixtral-8x7b-32768", temperature=0, api_key=api_key)
-fallback_llm2 = ChatGroq(model="llama-3.1-8b-instant", temperature=0, api_key=api_key)
+# Fallback: mixtral-8x7b-32768 (separate token bucket, 32k context)
+fallback_llm = ChatGroq(model="mixtral-8x7b-32768", temperature=0, api_key=api_key)
 
-llm = primary_llm.with_fallbacks([fallback_llm1, fallback_llm2])
+llm = primary_llm.with_fallbacks([fallback_llm])
 
 
 #1st agent 
