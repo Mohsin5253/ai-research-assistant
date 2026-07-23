@@ -18,6 +18,8 @@ import Careers from './pages/Careers';
 import Contact from './pages/Contact';
 import Legal from './pages/Legal';
 import ApiDocs from './pages/ApiDocs';
+import ApiKeys from './pages/ApiKeys';
+import SharedReport from './pages/SharedReport';
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('nexus_token'));
@@ -110,6 +112,8 @@ export default function App() {
             <Route path="/contact" element={<Contact />} />
             <Route path="/legal/:document" element={<Legal />} />
             <Route path="/api-docs" element={<ApiDocs />} />
+            <Route path="/api-keys" element={<ApiKeys currentUser={currentUser} token={token} onLoginClick={openAuth} />} />
+            <Route path="/share/:slug" element={<SharedReport />} />
           </Routes>
         </main>
 

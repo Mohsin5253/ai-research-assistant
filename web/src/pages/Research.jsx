@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Brain, Loader2, ArrowRight, Search, FileText, Sparkles, Download, Menu, X, MessageSquare, History } from 'lucide-react';
+import { Brain, Loader2, ArrowRight, FileText, Sparkles, Download, Menu, MessageSquare, History, Link2, Trash2, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate, useLocation } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
@@ -26,6 +26,7 @@ export default function Research({ currentUser, token, onLoginClick }) {
   const [hasAutoStarted, setHasAutoStarted] = useState(() => !(location.state?.initialTopic || sessionStorage.getItem('pending_research_topic')));
   const [sessions, setSessions] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [copiedSlug, setCopiedSlug] = useState(null);
 
   useEffect(() => {
     sessionStorage.removeItem('pending_research_topic');
@@ -48,6 +49,43 @@ export default function Research({ currentUser, token, onLoginClick }) {
       }
     } catch (e) {
       console.error('Failed to fetch sessions', e);
+    }
+  };
+
+  const handleShare = async (e, sessionId) => {
+    e.stopPropagation();
+    const API_URL = import.meta.env.VITE_API_URL || 'https://ai-research-assistant-2zmw.onrender.com';
+    try {
+      const res = await fetch(`${API_URL}/api/sessions/${sessionId}/share`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const shareUrl = `${window.location.origin}/share/${data.public_slug}`;
+        navigator.clipboard.writeText(shareUrl);
+        setCopiedSlug(sessionId);
+        setTimeout(() => setCopiedSlug(null), 2500);
+        setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, is_public: true, public_slug: data.public_slug } : s));
+      }
+    } catch (e) {
+      console.error('Failed to share session', e);
+    }
+  };
+
+  const handleDelete = async (e, sessionId) => {
+    e.stopPropagation();
+    if (!window.confirm('Delete this research? This cannot be undone.')) return;
+    const API_URL = import.meta.env.VITE_API_URL || 'https://ai-research-assistant-2zmw.onrender.com';
+    try {
+      await fetch(`${API_URL}/api/sessions/${sessionId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      if (activeId === String(sessionId)) setActiveId('new');
+    } catch (e) {
+      console.error('Failed to delete session', e);
     }
   };
 
@@ -330,10 +368,30 @@ export default function Research({ currentUser, token, onLoginClick }) {
                 sessions.map(s => {
                   return (
                     <div key={s.id} onClick={() => loadSession(s.id)} style={{
-                      padding: '0.75rem', borderRadius: '0.5rem', background: 'var(--bg-glass)', cursor: 'pointer', border: activeId === String(s.id) ? '1px solid var(--accent-primary)' : '1px solid transparent', transition: 'all 0.2s', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis'
+                      padding: '0.75rem', borderRadius: '0.5rem', background: 'var(--bg-glass)', cursor: 'pointer', border: activeId === String(s.id) ? '1px solid var(--accent-primary)' : '1px solid transparent', transition: 'all 0.2s', overflow: 'hidden'
                     }} onMouseEnter={e => { if(activeId !== String(s.id)) e.currentTarget.style.borderColor = 'var(--accent-secondary)'}} onMouseLeave={e => { if(activeId !== String(s.id)) e.currentTarget.style.borderColor = 'transparent'}}>
-                      <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{s.topic}</span>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{new Date(s.created_at).toLocaleDateString()}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{s.topic}</span>
+                        <div style={{ display: 'flex', gap: '0.25rem', flexShrink: 0 }}>
+                          <button
+                            title={s.is_public ? 'Link copied!' : 'Share publicly'}
+                            onClick={e => handleShare(e, s.id)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', borderRadius: '4px', color: s.is_public || copiedSlug === s.id ? '#34d399' : 'var(--text-tertiary)', transition: 'color 0.2s' }}
+                          >
+                            {copiedSlug === s.id ? <Check size={13} /> : <Link2 size={13} />}
+                          </button>
+                          <button
+                            title="Delete"
+                            onClick={e => handleDelete(e, s.id)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', borderRadius: '4px', color: 'var(--text-tertiary)', transition: 'color 0.2s' }}
+                            onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-tertiary)'}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.2rem' }}>{new Date(s.created_at).toLocaleDateString()}</div>
                     </div>
                   )
                 })

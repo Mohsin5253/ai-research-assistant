@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Brain, Menu, X, User as UserIcon, LogOut } from 'lucide-react';
+import { Brain, Menu, X, User as UserIcon, LogOut, Key, BookOpen } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Navbar({ currentUser, onLoginClick, onLogout }) {
@@ -53,6 +53,9 @@ export default function Navbar({ currentUser, onLoginClick, onLogout }) {
               <button onClick={() => { navigate('/research'); }} className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
                 Research
               </button>
+              <button onClick={() => navigate('/api-keys')} className="btn btn-outline" title="API Keys" style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Key size={15} /> <span className="hide-mobile">API Keys</span>
+              </button>
               <button onClick={onLogout} className="btn btn-outline" style={{ padding: '0.5rem 0.75rem' }}>
                 <LogOut size={16} />
               </button>
@@ -99,9 +102,11 @@ export default function Navbar({ currentUser, onLoginClick, onLogout }) {
           ))}
           <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
             {currentUser ? (
-              <button onClick={() => { onLogout(); setMenuOpen(false); }} className="btn btn-outline" style={{ flex: 1 }}>
-                Logout
-              </button>
+              <>
+                <button onClick={() => { navigate('/research'); setMenuOpen(false); }} className="btn btn-primary" style={{ flex: 1 }}>Research</button>
+                <button onClick={() => { navigate('/api-keys'); setMenuOpen(false); }} className="btn btn-outline" style={{ flex: 1 }}><Key size={14} /> API Keys</button>
+                <button onClick={() => { onLogout(); setMenuOpen(false); }} className="btn btn-outline" style={{ flex: 1 }}>Logout</button>
+              </>
             ) : (
               <>
                 <button onClick={() => { onLoginClick(true); setMenuOpen(false); }} className="btn btn-outline" style={{ flex: 1 }}>Log In</button>
